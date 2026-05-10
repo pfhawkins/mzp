@@ -6,12 +6,14 @@ describe("loadConfig", () => {
 	const originalUserId = process.env.ZOTERO_USER_ID;
 	const originalGroupId = process.env.ZOTERO_GROUP_ID;
 	const originalBaseUrl = process.env.ZOTERO_BASE_URL;
+	const originalLogLevel = process.env.LOG_LEVEL;
 
 	afterEach(() => {
 		process.env.ZOTERO_API_KEY = originalApiKey;
 		process.env.ZOTERO_USER_ID = originalUserId;
 		process.env.ZOTERO_GROUP_ID = originalGroupId;
 		process.env.ZOTERO_BASE_URL = originalBaseUrl;
+		process.env.LOG_LEVEL = originalLogLevel;
 	});
 
 	test("throws when ZOTERO_API_KEY is missing", () => {
@@ -71,5 +73,37 @@ describe("loadConfig", () => {
 		delete process.env.ZOTERO_GROUP_ID;
 		const config = loadConfig();
 		expect(config.baseUrl).toBe("https://custom.zotero.org");
+	});
+
+	test("throws when LOG_LEVEL is invalid", () => {
+		process.env.ZOTERO_API_KEY = "test";
+		process.env.ZOTERO_USER_ID = "123";
+		process.env.LOG_LEVEL = "verbose";
+		delete process.env.ZOTERO_GROUP_ID;
+		expect(() => loadConfig()).toThrow("LOG_LEVEL");
+	});
+
+	test("throws when LOG_LEVEL is empty", () => {
+		process.env.ZOTERO_API_KEY = "test";
+		process.env.ZOTERO_USER_ID = "123";
+		process.env.LOG_LEVEL = "";
+		delete process.env.ZOTERO_GROUP_ID;
+		expect(() => loadConfig()).toThrow("LOG_LEVEL");
+	});
+
+	test("throws when ZOTERO_BASE_URL is not an absolute URL", () => {
+		process.env.ZOTERO_API_KEY = "test";
+		process.env.ZOTERO_USER_ID = "123";
+		process.env.ZOTERO_BASE_URL = "api.zotero.org";
+		delete process.env.ZOTERO_GROUP_ID;
+		expect(() => loadConfig()).toThrow("ZOTERO_BASE_URL");
+	});
+
+	test("throws when ZOTERO_BASE_URL is empty", () => {
+		process.env.ZOTERO_API_KEY = "test";
+		process.env.ZOTERO_USER_ID = "123";
+		process.env.ZOTERO_BASE_URL = "   ";
+		delete process.env.ZOTERO_GROUP_ID;
+		expect(() => loadConfig()).toThrow("ZOTERO_BASE_URL");
 	});
 });

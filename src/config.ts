@@ -1,4 +1,4 @@
-import { logger } from "./logger.js";
+import { configureLogger, logger } from "./logger.js";
 
 export type Config = {
 	apiKey: string;
@@ -8,10 +8,12 @@ export type Config = {
 };
 
 export function loadConfig(): Config {
+	configureLogger();
+
 	const apiKey = process.env.ZOTERO_API_KEY?.trim();
 	const userId = process.env.ZOTERO_USER_ID?.trim();
 	const groupId = process.env.ZOTERO_GROUP_ID?.trim();
-	const baseUrl = process.env.ZOTERO_BASE_URL?.trim();
+	const baseUrl = parseBaseUrl(process.env.ZOTERO_BASE_URL);
 
 	const missing: string[] = [];
 	if (!apiKey) missing.push("ZOTERO_API_KEY");
@@ -39,4 +41,26 @@ export function loadConfig(): Config {
 
 	logger.debug("Configuration loaded successfully");
 	return { apiKey: apiKey as string, userId, groupId, baseUrl };
+}
+
+function parseBaseUrl(value: string | undefined): string | undefined {
+	if (value === undefined) return undefined;
+
+	const baseUrl = value.trim();
+	if (!baseUrl) {
+		throw new Error("Configuration error: invalid ZOTERO_BASE_URL. Expected an absolute URL.");
+	}
+
+	let url: URL;
+	try {
+		url = new URL(baseUrl);
+	} catch {
+		throw new Error("Configuration error: invalid ZOTERO_BASE_URL. Expected an absolute URL.");
+	}
+
+	if (url.protocol !== "http:" && url.protocol !== "https:") {
+		throw new Error("Configuration error: invalid ZOTERO_BASE_URL. Expected an http(s) URL.");
+	}
+
+	return baseUrl;
 }
