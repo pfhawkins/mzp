@@ -250,5 +250,5 @@ Update this table as phases complete.
 | 3 — Config/logging | complete | |
 | 4 — Build | complete | End-to-end tool call test passed with live Zotero credentials. All acceptance criteria pass: 5 artifacts + SHA256SUMS generated, host binary runs, version/help work, missing-env error is clear. |
 | 5 — Tests | complete | 63 tests, 95%+ coverage. Integration test spawns compiled binary and exercises full MCP handshake + tool calls against a mocked Zotero API server. |
-| 6 — Docs | not started | |
+| 6 — Docs | complete | README, LICENSE (MIT), and CHANGELOG added. All env var names match src/config.ts. |
 | 7 — Release (optional) | not started | |

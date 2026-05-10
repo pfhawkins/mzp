@@ -73,7 +73,10 @@ function zoteroFixturePort(attempt: number): number {
 	return min + ((seed + attempt * 997) % span);
 }
 
-async function startZoteroServerFixture(): Promise<{ proc: ReturnType<typeof spawn>; url: string }> {
+async function startZoteroServerFixture(): Promise<{
+	proc: ReturnType<typeof spawn>;
+	url: string;
+}> {
 	const errors: string[] = [];
 
 	for (let attempt = 1; attempt <= 5; attempt += 1) {
