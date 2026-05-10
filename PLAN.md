@@ -248,7 +248,7 @@ Update this table as phases complete.
 | 1 — Zotero client | complete | |
 | 2 — MCP tools | complete | |
 | 3 — Config/logging | complete | |
-| 4 — Build | not started | |
+| 4 — Build | complete | End-to-end tool call test passed with live Zotero credentials. All acceptance criteria pass: 5 artifacts + SHA256SUMS generated, host binary runs, version/help work, missing-env error is clear. |
 | 5 — Tests | not started | |
 | 6 — Docs | not started | |
 | 7 — Release (optional) | not started | |

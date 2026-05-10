@@ -8,6 +8,7 @@
 	"scripts": {
 		"dev": "bun run --watch src/index.ts",
 		"build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/zotero-mcp",
+		"build:all": "bun run scripts/build-all.ts",
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"test": "bun test"
