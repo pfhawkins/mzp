@@ -1,0 +1,24 @@
+{
+	"name": "zotero-mcp",
+	"version": "0.1.0",
+	"type": "module",
+	"bin": {
+		"zotero-mcp": "./dist/zotero-mcp"
+	},
+	"scripts": {
+		"dev": "bun run --watch src/index.ts",
+		"build": "bun build --compile --minify --sourcemap src/index.ts --outfile dist/zotero-mcp",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check .",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.29.0",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.15",
+		"@types/bun": "latest",
+		"typescript": "^5"
+	}
+}
