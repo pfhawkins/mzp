@@ -247,7 +247,7 @@ Update this table as phases complete.
 | 0 — Bootstrap | complete | |
 | 1 — Zotero client | complete | |
 | 2 — MCP tools | complete | |
-| 3 — Config/logging | not started | |
+| 3 — Config/logging | complete | |
 | 4 — Build | not started | |
 | 5 — Tests | not started | |
 | 6 — Docs | not started | |
