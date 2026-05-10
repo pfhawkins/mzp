@@ -66,8 +66,8 @@ export class ZoteroClient {
 		}
 	}
 
-	private async fetchWithRetry(url: string, init?: RequestInit, attempt = 0): Promise<Response> {
-		const res = await fetch(url, {
+	private fetchOnce(url: string, init?: RequestInit): Promise<Response> {
+		return fetch(url, {
 			...init,
 			headers: {
 				"Zotero-API-Version": "3",
@@ -75,6 +75,10 @@ export class ZoteroClient {
 				...(init?.headers ?? {}),
 			},
 		});
+	}
+
+	private async fetchWithRetry(url: string, init?: RequestInit, attempt = 0): Promise<Response> {
+		const res = await this.fetchOnce(url, init);
 
 		if ((res.status === 429 || res.status >= 500) && attempt < 3) {
 			const retryAfter = res.headers.get("Retry-After");
@@ -253,5 +257,29 @@ export class ZoteroClient {
 
 	getItemFulltext(itemKey: string) {
 		return this.request(`/items/${itemKey}/fulltext`, zoteroFulltextSchema);
+	}
+
+	async createItem(itemData: object) {
+		const url = `${this.baseUrl}${this.libraryPath}/items`;
+		const res = await this.fetchOnce(url, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify([itemData]),
+		});
+
+		if (!res.ok) {
+			const text = await res.text().catch(() => "Unknown error");
+			throw new ZoteroApiError(
+				`Zotero API error: ${res.status} ${text}`,
+				res.status,
+				undefined,
+				res.headers.get("Zotero-Request-ID") ?? undefined,
+			);
+		}
+
+		const json = await res.json();
+		return json;
 	}
 }

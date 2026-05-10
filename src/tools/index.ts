@@ -1,4 +1,5 @@
 import type { ZoteroClient } from "../zotero/client.js";
+import * as createItem from "./createItem.js";
 import * as getCollectionItems from "./getCollectionItems.js";
 import * as getFulltext from "./getFulltext.js";
 import * as getItem from "./getItem.js";
@@ -30,4 +31,5 @@ export const tools: ToolDefinition[] = [
 	listTags,
 	getFulltext,
 	recent,
+	createItem,
 ];

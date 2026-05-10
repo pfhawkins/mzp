@@ -274,6 +274,25 @@ describe("ZoteroClient", () => {
 		expect(calls).toBe(1);
 	});
 
+	test("does not retry item creation POSTs", async () => {
+		mockSetTimeoutImmediate();
+		let calls = 0;
+		mockFetch(async () => {
+			calls++;
+			return new Response("Service Unavailable", { status: 503 });
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+		await expect(client.createItem({ itemType: "book", title: "A Book" })).rejects.toThrow(
+			"Zotero API error: 503",
+		);
+		expect(calls).toBe(1);
+	});
+
 	test("maps API errors to ZoteroApiError with status and requestId", async () => {
 		mockFetch(async () => {
 			return new Response("Forbidden", {

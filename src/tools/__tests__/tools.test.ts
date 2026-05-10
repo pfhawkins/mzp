@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ZoteroClient } from "../../zotero/client.js";
+import * as createItem from "../createItem.js";
 import * as getCollectionItems from "../getCollectionItems.js";
 import * as getFulltext from "../getFulltext.js";
 import * as getItem from "../getItem.js";
@@ -238,5 +239,38 @@ describe("zotero_recent", () => {
 		const client = makeMockClient();
 		const result = await recent.handler(client, { since: "not-a-date" });
 		expect(result.isError).toBe(true);
+	});
+});
+
+describe("zotero_create_item", () => {
+	test("preserves valid Zotero fields outside the common field list", async () => {
+		let createdItem: object | undefined;
+		const client = makeMockClient({
+			createItem: async (itemData) => {
+				createdItem = itemData;
+				return { success: { "0": "NEWITEM" } };
+			},
+		});
+
+		const result = await createItem.handler(client, {
+			itemType: "book",
+			title: "A Book",
+			publisher: "Example Press",
+			ISBN: "978-0-00-000000-0",
+			language: "en",
+			creators: [{ creatorType: "author", name: "Ada Lovelace" }],
+			customZoteroField: "kept",
+		});
+
+		expect(result.content[0]?.text).toContain("NEWITEM");
+		expect(createdItem).toEqual({
+			itemType: "book",
+			title: "A Book",
+			publisher: "Example Press",
+			ISBN: "978-0-00-000000-0",
+			language: "en",
+			creators: [{ creatorType: "author", name: "Ada Lovelace" }],
+			customZoteroField: "kept",
+		});
 	});
 });

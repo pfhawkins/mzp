@@ -18,10 +18,10 @@ if (!Number.isInteger(port) || port <= 0) {
 const server = Bun.serve({
 	hostname: "127.0.0.1",
 	port,
-	fetch(req) {
+	async fetch(req) {
 		const url = new URL(req.url);
 
-		if (url.pathname === "/users/123/items") {
+		if (url.pathname === "/users/123/items" && req.method === "GET") {
 			return json([
 				{
 					key: "ITEM1",
@@ -51,6 +51,27 @@ const server = Bun.serve({
 
 		if (url.pathname === "/users/123/tags") {
 			return json([{ tag: "integration" }]);
+		}
+
+		if (url.pathname === "/users/123/items" && req.method === "POST") {
+			const body = await req.json();
+			const item = body[0];
+			return json({
+				successful: {
+					"0": {
+						key: "NEWITEM",
+						version: 1,
+						data: {
+							key: "NEWITEM",
+							version: 1,
+							...item,
+						},
+					},
+				},
+				success: { "0": "NEWITEM" },
+				unchanged: {},
+				failed: {},
+			});
 		}
 
 		return new Response("Not found", { status: 404 });
@@ -258,6 +279,7 @@ describe("MCP protocol integration", () => {
 		expect(toolNames).toContain("zotero_recent");
 		expect(toolNames).toContain("zotero_get_item_children");
 		expect(toolNames).toContain("zotero_get_collection_items");
+		expect(toolNames).toContain("zotero_create_item");
 	});
 
 	test("tools/call zotero_search returns results", async () => {
@@ -329,6 +351,33 @@ describe("MCP protocol integration", () => {
 		expect(res.id).toBe(5);
 		expect(res.error).toBeDefined();
 		expect(res.error?.message).toContain("Unknown tool");
+	});
+
+	test("tools/call zotero_create_item creates an item", async () => {
+		await sendJson(proc, {
+			jsonrpc: "2.0",
+			id: 7,
+			method: "tools/call",
+			params: {
+				name: "zotero_create_item",
+				arguments: {
+					itemType: "journalArticle",
+					title: "Test Creation",
+					creators: [{ creatorType: "author", firstName: "Test", lastName: "Creator" }],
+				},
+			},
+		});
+
+		const res = (await nextResponse()) as {
+			jsonrpc: string;
+			id: number;
+			result: { content: Array<{ type: string; text: string }>; isError?: boolean };
+		};
+
+		expect(res.jsonrpc).toBe("2.0");
+		expect(res.id).toBe(7);
+		expect(res.result.isError).toBeUndefined();
+		expect(res.result.content[0]?.text).toContain("NEWITEM");
 	});
 
 	test("resources/templates/list returns templates", async () => {

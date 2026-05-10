@@ -1,0 +1,9 @@
+{
+	"mcpServers": {
+		"zotero": {
+			"command": "bun",
+			"args": ["run", "src/index.ts"],
+			"directTools": true
+		}
+	}
+}
