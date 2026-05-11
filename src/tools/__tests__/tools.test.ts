@@ -118,6 +118,25 @@ describe("zotero_get_item_children", () => {
 		expect(result.content[0]?.text).toContain("ATT1");
 	});
 
+	test("decodes HTML entities in notes after stripping tags", async () => {
+		const client = makeMockClient({
+			getItemChildren: async () => [
+				{
+					key: "NOTE1",
+					itemType: "note",
+					title: "My Note",
+					note: "<p>Research &amp; Development &#40;R&amp;D&#41; costs &#x3c; budget</p>",
+					version: 1,
+				},
+			],
+		});
+
+		const result = await getItemChildren.handler(client, { itemKey: "ITEM1" });
+
+		expect(result.content[0]?.text).toContain("Research & Development (R&D) costs < budget");
+		expect(result.content[0]?.text).not.toContain("&amp;");
+	});
+
 	test("returns empty message when no children", async () => {
 		const client = makeMockClient({ getItemChildren: async () => [] });
 		const result = await getItemChildren.handler(client, { itemKey: "ITEM1" });

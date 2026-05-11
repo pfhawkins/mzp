@@ -17,6 +17,39 @@ const schema = z.object({
 	itemKey: z.string().min(1),
 });
 
+const namedHtmlEntities: Record<string, string> = {
+	amp: "&",
+	apos: "'",
+	gt: ">",
+	lt: "<",
+	nbsp: " ",
+	quot: '"',
+};
+
+function decodeHtmlEntities(text: string): string {
+	return text.replace(/&(#\d+|#x[\da-fA-F]+|[a-zA-Z][a-zA-Z0-9]+);/g, (entity, value: string) => {
+		if (value.startsWith("#x")) {
+			const codePoint = Number.parseInt(value.slice(2), 16);
+			return isValidCodePoint(codePoint) ? String.fromCodePoint(codePoint) : entity;
+		}
+
+		if (value.startsWith("#")) {
+			const codePoint = Number.parseInt(value.slice(1), 10);
+			return isValidCodePoint(codePoint) ? String.fromCodePoint(codePoint) : entity;
+		}
+
+		return namedHtmlEntities[value] ?? entity;
+	});
+}
+
+function isValidCodePoint(codePoint: number): boolean {
+	return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff;
+}
+
+function formatNoteText(noteText: string): string {
+	return decodeHtmlEntities(noteText.replace(/<[^>]+>/g, "")).slice(0, 200);
+}
+
 export async function handler(client: ZoteroClient, args: unknown) {
 	const parsed = schema.safeParse(args);
 	if (!parsed.success) {
@@ -44,7 +77,7 @@ export async function handler(client: ZoteroClient, args: unknown) {
 			const noteText = (note as Record<string, unknown>).note as string | undefined;
 			const title = note.title ?? "Untitled Note";
 			lines.push(`- ${title} (key: ${note.key})`);
-			if (noteText) lines.push(`  ${noteText.replace(/<[^>]+>/g, "").slice(0, 200)}...`);
+			if (noteText) lines.push(`  ${formatNoteText(noteText)}...`);
 		}
 	}
 
