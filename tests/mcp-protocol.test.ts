@@ -186,29 +186,32 @@ describe("MCP protocol integration", () => {
 	let responseIter: AsyncIterator<string> | undefined;
 	let buildDir: string | undefined;
 
-	beforeAll(async () => {
-		buildDir = await mkdtemp(join(tmpdir(), "zotero-mcp-test-"));
-		const binaryPath = join(buildDir, BINARY_NAME);
-		await Bun.$`bun build --compile --minify --sourcemap src/index.ts --outfile ${binaryPath}`;
+	beforeAll(
+		async () => {
+			buildDir = await mkdtemp(join(tmpdir(), "zotero-mcp-test-"));
+			const binaryPath = join(buildDir, BINARY_NAME);
+			await Bun.$`bun build --compile --minify --sourcemap src/index.ts --outfile ${binaryPath}`;
 
-		const zoteroFixture = await startZoteroServerFixture();
-		zoteroServer = zoteroFixture.proc;
-		zoteroBaseUrl = zoteroFixture.url;
+			const zoteroFixture = await startZoteroServerFixture();
+			zoteroServer = zoteroFixture.proc;
+			zoteroBaseUrl = zoteroFixture.url;
 
-		proc = spawn(binaryPath, [], {
-			stdio: ["pipe", "pipe", "pipe"],
-			env: {
-				...process.env,
-				ZOTERO_API_KEY: "test-key",
-				ZOTERO_USER_ID: "123",
-				ZOTERO_BASE_URL: zoteroBaseUrl,
-				LOG_LEVEL: "error",
-			},
-		});
+			proc = spawn(binaryPath, [], {
+				stdio: ["pipe", "pipe", "pipe"],
+				env: {
+					...process.env,
+					ZOTERO_API_KEY: "test-key",
+					ZOTERO_USER_ID: "123",
+					ZOTERO_BASE_URL: zoteroBaseUrl,
+					LOG_LEVEL: "error",
+				},
+			});
 
-		const rl = createInterface({ input: proc.stdout ?? process.stdout });
-		responseIter = rl[Symbol.asyncIterator]();
-	}, { timeout: 15_000 });
+			const rl = createInterface({ input: proc.stdout ?? process.stdout });
+			responseIter = rl[Symbol.asyncIterator]();
+		},
+		{ timeout: 15_000 },
+	);
 
 	afterAll(async () => {
 		proc?.stdin?.end();

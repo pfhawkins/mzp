@@ -101,13 +101,14 @@ Any client that supports MCP over stdio can use this server. Provide the binary 
 | `zotero_list_collections` | List collections in the library. | `{ "limit": 25 }` |
 | `zotero_get_collection_items` | List items inside a collection. | `{ "collectionKey": "FGHIJ456", "limit": 25 }` |
 | `zotero_list_tags` | List all tags in the library. | `{ "limit": 50 }` |
-| `zotero_get_fulltext` | Retrieve indexed full-text content for an item. | `{ "itemKey": "ABCDE123" }` |
+| `zotero_get_fulltext` | Retrieve indexed full-text content for an item. | `{ "itemKey": "ABCDE123", "offset": 0, "length": 5000 }` |
 | `zotero_recent` | Fetch recently added or modified items. | `{ "limit": 10, "since": "2024-01-01T00:00:00Z" }` |
 | `zotero_create_item` | Create a new Zotero item from item metadata. | `{ "itemType": "book", "title": "A Book" }` |
 
 ### Optional filters and parameters
 
 - **`zotero_search`** supports `itemType` (e.g., `journalArticle`, `book`) and `tag` filters.
+- **`zotero_get_fulltext`** accepts `offset` and `length` so long indexed content can be read in pages.
 - **`zotero_recent`** accepts an ISO 8601 `since` date. It fetches the newest `limit` items sorted by modification time, then filters those results by `since`.
 - **`zotero_create_item`** requires `itemType` and `title`, and accepts Zotero item fields such as `creators`, `abstractNote`, `url`, `date`, `tags`, and `collections`.
 - All list/search tools accept `limit` (max 50) and `start` (pagination offset) where applicable.

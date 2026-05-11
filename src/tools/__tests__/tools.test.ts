@@ -191,12 +191,54 @@ describe("zotero_get_fulltext", () => {
 		const result = await getFulltext.handler(client, { itemKey: "ITEM1" });
 		expect(result.content[0]?.text).toContain("This is the full text.");
 		expect(result.content[0]?.text).toContain("Indexed pages: 5");
+		expect(result.content[0]?.text).toContain("Showing chars 0-22 of 22");
 	});
 
 	test("returns message when no fulltext", async () => {
 		const client = makeMockClient({ getItemFulltext: async () => ({}) });
 		const result = await getFulltext.handler(client, { itemKey: "ITEM1" });
 		expect(result.content[0]?.text).toContain("No full-text content");
+	});
+
+	test("returns a requested fulltext page with a next offset", async () => {
+		const client = makeMockClient({
+			getItemFulltext: async () => ({
+				content: "abcdefghijklmnopqrstuvwxyz",
+				indexedChars: 26,
+			}),
+		});
+
+		const result = await getFulltext.handler(client, {
+			itemKey: "ITEM1",
+			offset: 5,
+			length: 10,
+		});
+
+		expect(result.content[0]?.text).toContain("Showing chars 5-15 of 26");
+		expect(result.content[0]?.text).toContain("\nfghijklmno\n");
+		expect(result.content[0]?.text).toContain("Next offset: 15");
+	});
+
+	test("reports when fulltext offset is past available content", async () => {
+		const client = makeMockClient({
+			getItemFulltext: async () => ({
+				content: "short text",
+				indexedChars: 100,
+			}),
+		});
+
+		const result = await getFulltext.handler(client, { itemKey: "ITEM1", offset: 20 });
+
+		expect(result.content[0]?.text).toContain("Available chars: 10");
+		expect(result.content[0]?.text).toContain("Requested offset 20 is past the available content");
+	});
+
+	test("rejects invalid fulltext page length", async () => {
+		const client = makeMockClient();
+		const result = await getFulltext.handler(client, { itemKey: "ITEM1", length: 0 });
+
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toContain("Invalid input");
 	});
 });
 
