@@ -57,6 +57,41 @@ export const inputSchema = {
 	additionalProperties: true,
 } as const;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatWriteFailure(failure: unknown): string {
+	if (!isRecord(failure)) {
+		return String(failure);
+	}
+
+	const message = typeof failure.message === "string" ? failure.message : undefined;
+	const code =
+		typeof failure.code === "number" || typeof failure.code === "string" ? failure.code : undefined;
+	if (message && code !== undefined) {
+		return `${message} (code: ${code})`;
+	}
+	if (message) {
+		return message;
+	}
+
+	return JSON.stringify(failure);
+}
+
+function getWriteFailure(result: unknown): unknown | undefined {
+	if (!isRecord(result) || !isRecord(result.failed)) {
+		return undefined;
+	}
+
+	if (Object.hasOwn(result.failed, "0")) {
+		return result.failed["0"];
+	}
+
+	const firstFailedKey = Object.keys(result.failed)[0];
+	return firstFailedKey ? result.failed[firstFailedKey] : undefined;
+}
+
 export const handler: ToolDefinition["handler"] = async (client, args) => {
 	const parsed = z
 		.object({
@@ -95,6 +130,10 @@ export const handler: ToolDefinition["handler"] = async (client, args) => {
 	const itemData = { ...parsed };
 
 	const result = await client.createItem(itemData);
+	const writeFailure = getWriteFailure(result);
+	if (writeFailure !== undefined) {
+		throw new Error(`Zotero item creation failed: ${formatWriteFailure(writeFailure)}`);
+	}
 
 	return {
 		content: [

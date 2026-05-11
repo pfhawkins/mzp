@@ -273,4 +273,25 @@ describe("zotero_create_item", () => {
 			customZoteroField: "kept",
 		});
 	});
+
+	test("treats Zotero batch write failures as creation errors", async () => {
+		const client = makeMockClient({
+			createItem: async () => ({
+				success: {},
+				failed: {
+					"0": {
+						code: 400,
+						message: "Invalid item data",
+					},
+				},
+			}),
+		});
+
+		await expect(
+			createItem.handler(client, {
+				itemType: "book",
+				title: "A Book",
+			}),
+		).rejects.toThrow("Zotero item creation failed: Invalid item data (code: 400)");
+	});
 });
