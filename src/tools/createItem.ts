@@ -92,6 +92,33 @@ function getWriteFailure(result: unknown): unknown | undefined {
 	return firstFailedKey ? result.failed[firstFailedKey] : undefined;
 }
 
+function getCreatedItemKey(result: unknown): string | undefined {
+	if (!isRecord(result)) {
+		return undefined;
+	}
+
+	if (isRecord(result.success)) {
+		const successKey = result.success["0"];
+		if (typeof successKey === "string") {
+			return successKey;
+		}
+	}
+
+	if (isRecord(result.successful)) {
+		const successfulItem = result.successful["0"];
+		if (isRecord(successfulItem)) {
+			if (typeof successfulItem.key === "string") {
+				return successfulItem.key;
+			}
+			if (isRecord(successfulItem.data) && typeof successfulItem.data.key === "string") {
+				return successfulItem.data.key;
+			}
+		}
+	}
+
+	return undefined;
+}
+
 function stripServerAssignedFields<T extends Record<string, unknown>>(
 	itemData: T,
 ): Omit<T, "key" | "version" | "itemKey"> {
@@ -142,11 +169,16 @@ export const handler: ToolDefinition["handler"] = async (client, args) => {
 		throw new Error(`Zotero item creation failed: ${formatWriteFailure(writeFailure)}`);
 	}
 
+	const createdItemKey = getCreatedItemKey(result);
+	const firstLine = createdItemKey
+		? `Item created successfully: ${createdItemKey}`
+		: "Item created successfully.";
+
 	return {
 		content: [
 			{
 				type: "text" as const,
-				text: `Item created successfully.\n\n${JSON.stringify(result, null, 2)}`,
+				text: `${firstLine}\n\n${JSON.stringify(result, null, 2)}`,
 			},
 		],
 	};

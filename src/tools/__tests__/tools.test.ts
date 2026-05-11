@@ -430,6 +430,7 @@ describe("zotero_create_item", () => {
 			customZoteroField: "kept",
 		});
 
+		expect(result.content[0]?.text.split("\n")[0]).toBe("Item created successfully: NEWITEM");
 		expect(result.content[0]?.text).toContain("NEWITEM");
 		expect(createdItem).toEqual({
 			itemType: "book",
@@ -440,6 +441,29 @@ describe("zotero_create_item", () => {
 			creators: [{ creatorType: "author", name: "Ada Lovelace" }],
 			customZoteroField: "kept",
 		});
+	});
+
+	test("surfaces the created item key from Zotero successful response on the first line", async () => {
+		const client = makeMockClient({
+			createItem: async () => ({
+				successful: {
+					"0": {
+						key: "KEYFROMITEM",
+						version: 1,
+						data: { key: "KEYFROMDATA", itemType: "book", title: "A Book" },
+					},
+				},
+				success: {},
+				failed: {},
+			}),
+		});
+
+		const result = await createItem.handler(client, {
+			itemType: "book",
+			title: "A Book",
+		});
+
+		expect(result.content[0]?.text.split("\n")[0]).toBe("Item created successfully: KEYFROMITEM");
 	});
 
 	test("strips server-assigned fields before creating an item", async () => {
