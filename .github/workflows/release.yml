@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -27,7 +27,7 @@ jobs:
         run: bun run build:all
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binaries
           path: dist/*
@@ -38,13 +38,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: binaries
           path: dist
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           draft: true
@@ -69,7 +69,7 @@ jobs:
 
       - name: Download macOS artifacts
         if: steps.check.outputs.has_secrets == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: binaries
           path: dist
