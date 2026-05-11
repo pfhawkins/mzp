@@ -274,12 +274,29 @@ describe("ZoteroClient", () => {
 		expect(calls).toBe(1);
 	});
 
-	test("does not retry item creation POSTs", async () => {
+	test("retries item creation POSTs on transient errors", async () => {
 		mockSetTimeoutImmediate();
 		let calls = 0;
 		mockFetch(async () => {
 			calls++;
-			return new Response("Service Unavailable", { status: 503 });
+			if (calls === 1) {
+				return new Response("Service Unavailable", { status: 503 });
+			}
+
+			return new Response(
+				JSON.stringify({
+					successful: {
+						"0": {
+							key: "NEWITEM",
+							version: 1,
+							data: { key: "NEWITEM", version: 1, itemType: "book", title: "A Book" },
+						},
+					},
+					success: { "0": "NEWITEM" },
+					unchanged: {},
+					failed: {},
+				}),
+			);
 		});
 
 		const client = new ZoteroClient({
@@ -287,10 +304,71 @@ describe("ZoteroClient", () => {
 			userId: "123",
 			baseUrl: "https://zotero.test",
 		});
-		await expect(client.createItem({ itemType: "book", title: "A Book" })).rejects.toThrow(
-			"Zotero API error: 503",
-		);
-		expect(calls).toBe(1);
+		const result = await client.createItem({ itemType: "book", title: "A Book" });
+		expect(result.success?.["0"]).toBe("NEWITEM");
+		expect(calls).toBe(2);
+	});
+
+	test("createItem sends JSON POST body and parses Zotero write responses", async () => {
+		const requests: { url: string; method?: string; headers: Headers; body: unknown }[] = [];
+		mockFetch(async (url, init) => {
+			requests.push({
+				url: url.toString(),
+				method: init?.method,
+				headers: new Headers(init?.headers),
+				body: JSON.parse(init?.body as string),
+			});
+			return new Response(
+				JSON.stringify({
+					successful: {
+						"0": {
+							key: "NEWITEM",
+							version: 1,
+							data: { key: "NEWITEM", version: 1, itemType: "book", title: "A Book" },
+						},
+					},
+					success: { "0": "NEWITEM" },
+					unchanged: {},
+					failed: {},
+				}),
+			);
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+		const result = await client.createItem({ itemType: "book", title: "A Book" });
+
+		expect(result.successful?.["0"]).toBeDefined();
+		expect(requests).toHaveLength(1);
+		expect(requests[0]?.url).toBe("https://zotero.test/users/123/items");
+		expect(requests[0]?.method).toBe("POST");
+		expect(requests[0]?.headers.get("Content-Type")).toBe("application/json");
+		expect(requests[0]?.headers.get("Authorization")).toBe("Bearer test");
+		expect(requests[0]?.body).toEqual([{ itemType: "book", title: "A Book" }]);
+	});
+
+	test("createItem maps invalid write responses to ZoteroApiError", async () => {
+		mockFetch(async () => {
+			return new Response(JSON.stringify({ unexpected: true }));
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+
+		try {
+			await client.createItem({ itemType: "book", title: "A Book" });
+			expect.unreachable("should have thrown");
+		} catch (err) {
+			expect(err).toBeInstanceOf(ZoteroApiError);
+			expect((err as ZoteroApiError).code).toBe("INVALID_RESPONSE");
+			expect((err as ZoteroApiError).message).toContain("Invalid response");
+		}
 	});
 
 	test("maps API errors to ZoteroApiError with status and requestId", async () => {

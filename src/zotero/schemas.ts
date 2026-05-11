@@ -78,3 +78,20 @@ export const zoteroFulltextSchema = z
 		indexedChars: z.number().optional(),
 	})
 	.passthrough();
+
+export const zoteroWriteResponseSchema = z
+	.object({
+		successful: z.record(z.string(), z.unknown()).optional(),
+		success: z.record(z.string(), z.string()).optional(),
+		unchanged: z.record(z.string(), z.unknown()).optional(),
+		failed: z.record(z.string(), z.unknown()).optional(),
+	})
+	.passthrough()
+	.refine(
+		(response) =>
+			Object.hasOwn(response, "successful") ||
+			Object.hasOwn(response, "success") ||
+			Object.hasOwn(response, "unchanged") ||
+			Object.hasOwn(response, "failed"),
+		"Expected Zotero write response fields",
+	);

@@ -4,6 +4,7 @@ import {
 	zoteroFulltextSchema,
 	zoteroItemSchema,
 	zoteroTagResponseSchema,
+	zoteroWriteResponseSchema,
 } from "./schemas.js";
 
 function linkHeaderUrlForRel(linkHeader: string | null, rel: string): string | undefined {
@@ -98,7 +99,7 @@ export class ZoteroClient {
 	private async request<T>(
 		path: string,
 		schema: z.ZodType<T>,
-		opts?: { params?: Record<string, string | number | undefined> },
+		opts?: { params?: Record<string, string | number | undefined>; init?: RequestInit },
 	): Promise<T> {
 		const url = new URL(`${this.baseUrl}${this.libraryPath}${path}`);
 		if (opts?.params) {
@@ -107,7 +108,7 @@ export class ZoteroClient {
 			}
 		}
 
-		const res = await this.fetchWithRetry(url.toString());
+		const res = await this.fetchWithRetry(url.toString(), opts?.init);
 
 		if (!res.ok) {
 			const text = await res.text().catch(() => "Unknown error");
@@ -260,26 +261,14 @@ export class ZoteroClient {
 	}
 
 	async createItem(itemData: object) {
-		const url = `${this.baseUrl}${this.libraryPath}/items`;
-		const res = await this.fetchOnce(url, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
+		return this.request("/items", zoteroWriteResponseSchema, {
+			init: {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify([itemData]),
 			},
-			body: JSON.stringify([itemData]),
 		});
-
-		if (!res.ok) {
-			const text = await res.text().catch(() => "Unknown error");
-			throw new ZoteroApiError(
-				`Zotero API error: ${res.status} ${text}`,
-				res.status,
-				undefined,
-				res.headers.get("Zotero-Request-ID") ?? undefined,
-			);
-		}
-
-		const json = await res.json();
-		return json;
 	}
 }
