@@ -11,8 +11,9 @@ function mockFetch(
 	globalThis.fetch = handler as unknown as typeof fetch;
 }
 
-function mockSetTimeoutImmediate() {
-	globalThis.setTimeout = ((cb: () => void) => {
+function mockSetTimeoutImmediate(delays?: number[]) {
+	globalThis.setTimeout = ((cb: () => void, delay?: number) => {
+		delays?.push(delay ?? 0);
 		cb();
 		return 0;
 	}) as unknown as typeof setTimeout;
@@ -218,6 +219,34 @@ describe("ZoteroClient", () => {
 		const items = await client.listItems({ limit: 1 });
 		expect(calls).toBe(2);
 		expect(items).toHaveLength(1);
+	});
+
+	test("falls back to exponential backoff when Retry-After is an HTTP-date", async () => {
+		const delays: number[] = [];
+		mockSetTimeoutImmediate(delays);
+		let calls = 0;
+		mockFetch(async () => {
+			calls++;
+			if (calls === 1) {
+				return new Response("Too Many Requests", {
+					status: 429,
+					headers: { "Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT" },
+				});
+			}
+			return new Response(JSON.stringify([{ key: "ITEM1", itemType: "book", version: 1 }]));
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+		const items = await client.listItems({ limit: 1 });
+		expect(calls).toBe(2);
+		expect(items).toHaveLength(1);
+		expect(delays).toHaveLength(1);
+		expect(delays[0]).toBeGreaterThanOrEqual(1000);
+		expect(delays[0]).toBeLessThan(2000);
 	});
 
 	test("retry on 500 with exponential backoff", async () => {

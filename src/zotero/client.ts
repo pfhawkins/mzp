@@ -7,6 +7,15 @@ import {
 	zoteroWriteResponseSchema,
 } from "./schemas.js";
 
+function retryDelayMs(attempt: number, retryAfter: string | null): number {
+	if (retryAfter) {
+		const retryAfterSeconds = Number(retryAfter);
+		if (Number.isFinite(retryAfterSeconds)) return retryAfterSeconds * 1000;
+	}
+
+	return Math.min(1000 * 2 ** attempt, 10000) + Math.random() * 1000;
+}
+
 function linkHeaderUrlForRel(linkHeader: string | null, rel: string): string | undefined {
 	if (!linkHeader) return undefined;
 
@@ -83,12 +92,7 @@ export class ZoteroClient {
 
 		if ((res.status === 429 || res.status >= 500) && attempt < 3) {
 			const retryAfter = res.headers.get("Retry-After");
-			let delay: number;
-			if (retryAfter) {
-				delay = Number(retryAfter) * 1000;
-			} else {
-				delay = Math.min(1000 * 2 ** attempt, 10000) + Math.random() * 1000;
-			}
+			const delay = retryDelayMs(attempt, retryAfter);
 			await new Promise((r) => setTimeout(r, delay));
 			return this.fetchWithRetry(url, init, attempt + 1);
 		}
