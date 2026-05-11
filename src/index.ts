@@ -14,6 +14,13 @@ import { ZoteroClient } from "./zotero/client.js";
 
 const args = process.argv.slice(2);
 
+function toolErrorResult(message: string) {
+	return {
+		content: [{ type: "text" as const, text: `Error: ${message}` }],
+		isError: true,
+	};
+}
+
 if (args.includes("--version") || args.includes("-v")) {
 	console.error(pkg.version);
 	process.exit(0);
@@ -63,17 +70,14 @@ try {
 	server.setRequestHandler(CallToolRequestSchema, async (request) => {
 		const tool = tools.find((t) => t.name === request.params.name);
 		if (!tool) {
-			throw new Error(`Unknown tool: ${request.params.name}`);
+			return toolErrorResult(`Unknown tool: ${request.params.name}`);
 		}
 		try {
 			return await tool.handler(client, request.params.arguments ?? {});
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			logger.error(`Tool ${request.params.name} failed:`, message);
-			return {
-				content: [{ type: "text" as const, text: `Error: ${message}` }],
-				isError: true,
-			};
+			return toolErrorResult(message);
 		}
 	});
 

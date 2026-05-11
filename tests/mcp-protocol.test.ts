@@ -208,7 +208,7 @@ describe("MCP protocol integration", () => {
 
 		const rl = createInterface({ input: proc.stdout ?? process.stdout });
 		responseIter = rl[Symbol.asyncIterator]();
-	});
+	}, { timeout: 15_000 });
 
 	afterAll(async () => {
 		proc?.stdin?.end();
@@ -344,13 +344,13 @@ describe("MCP protocol integration", () => {
 		const res = (await nextResponse()) as {
 			jsonrpc: string;
 			id: number;
-			error?: { code: number; message: string };
+			result?: { content: Array<{ type: string; text: string }>; isError?: boolean };
 		};
 
 		expect(res.jsonrpc).toBe("2.0");
 		expect(res.id).toBe(5);
-		expect(res.error).toBeDefined();
-		expect(res.error?.message).toContain("Unknown tool");
+		expect(res.result?.isError).toBe(true);
+		expect(res.result?.content[0]?.text).toContain("Unknown tool");
 	});
 
 	test("tools/call zotero_create_item creates an item", async () => {
