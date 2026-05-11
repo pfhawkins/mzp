@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build all binaries
+        run: bun run build:all
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/*
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          draft: true
+          generate_release_notes: true
+
+  notarize:
+    needs: release
+    runs-on: macos-latest
+    steps:
+      - name: Check for Apple credentials
+        id: check
+        run: |
+          if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
+            echo "has_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_secrets=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+
+      - name: Download macOS artifacts
+        if: steps.check.outputs.has_secrets == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: dist
+
+      - name: Codesign and notarize macOS binaries
+        if: steps.check.outputs.has_secrets == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          # TODO(human): Implement codesign + notarytool steps.
+          # This job is gated on the presence of APPLE_ID, APPLE_TEAM_ID,
+          # and APPLE_APP_PASSWORD repository secrets.
+          #
+          # Example flow:
+          #   1. codesign --sign "Developer ID Application: ..." \
+          #        --force --options runtime --timestamp \
+          #        dist/zotero-mcp-darwin-arm64 dist/zotero-mcp-darwin-x64
+          #   2. zip the binaries and submit to Apple:
+          #        xcrun notarytool submit <zip> --apple-id "$APPLE_ID" \
+          #        --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          #   3. Staple the notarization ticket:
+          #        xcrun stapler staple dist/zotero-mcp-darwin-arm64
+          #        xcrun stapler staple dist/zotero-mcp-darwin-x64
+          #   4. Re-upload the modified binaries and regenerate SHA256SUMS.
+          echo "Notarization step is gated and ready. Add codesign + notarytool commands to activate."
