@@ -284,6 +284,33 @@ describe("zotero_recent", () => {
 		expect(result.content[0]?.text).not.toContain("Old Book");
 	});
 
+	test("accepts date-only since values", async () => {
+		const client = makeMockClient({
+			iterateItems: () =>
+				asyncItems([
+					{
+						key: "I2",
+						itemType: "book",
+						title: "Same Day Book",
+						dateModified: "2024-06-01T12:00:00Z",
+						version: 1,
+					},
+					{
+						key: "I1",
+						itemType: "book",
+						title: "Previous Day Book",
+						dateModified: "2024-05-31T23:59:59Z",
+						version: 1,
+					},
+				]),
+		});
+
+		const result = await recent.handler(client, { since: "2024-06-01" });
+
+		expect(result.content[0]?.text).toContain("Same Day Book");
+		expect(result.content[0]?.text).not.toContain("Previous Day Book");
+	});
+
 	test("uses the item iterator for since results until the requested limit is filled", async () => {
 		const calls: Array<{ limit?: number; sort?: string; direction?: string }> = [];
 		const client = makeMockClient({
@@ -333,6 +360,12 @@ describe("zotero_recent", () => {
 	test("rejects invalid since date", async () => {
 		const client = makeMockClient();
 		const result = await recent.handler(client, { since: "not-a-date" });
+		expect(result.isError).toBe(true);
+	});
+
+	test("rejects invalid date-only since dates", async () => {
+		const client = makeMockClient();
+		const result = await recent.handler(client, { since: "2024-02-31" });
 		expect(result.isError).toBe(true);
 	});
 });

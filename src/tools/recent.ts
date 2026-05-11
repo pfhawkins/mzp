@@ -21,17 +21,51 @@ export const inputSchema = {
 	},
 };
 
-const schema = z.object({
-	limit: z.number().min(1).max(50).optional(),
-	since: z.string().datetime().optional(),
-});
-
 type ZoteroItem = Awaited<ReturnType<ZoteroClient["listItems"]>>[number];
 
 const sortOptions = {
 	sort: "dateModified",
 	direction: "desc",
 } as const;
+
+function parseSinceDate(value: string): Date | undefined {
+	const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+	if (dateOnlyMatch) {
+		const [, yearValue, monthValue, dayValue] = dateOnlyMatch;
+		const year = Number(yearValue);
+		const month = Number(monthValue);
+		const day = Number(dayValue);
+		const date = new Date(Date.UTC(year, month - 1, day));
+		const isValidDate =
+			date.getUTCFullYear() === year &&
+			date.getUTCMonth() === month - 1 &&
+			date.getUTCDate() === day;
+
+		return isValidDate ? date : undefined;
+	}
+
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+const schema = z.object({
+	limit: z.number().min(1).max(50).optional(),
+	since: z
+		.string()
+		.transform((value, ctx) => {
+			const date = parseSinceDate(value);
+			if (!date) {
+				ctx.addIssue({
+					code: "custom",
+					message: "Expected an ISO date or datetime string",
+				});
+				return z.NEVER;
+			}
+
+			return date;
+		})
+		.optional(),
+});
 
 function modifiedAt(item: ZoteroItem): Date | undefined {
 	const dateModified = (item as Record<string, unknown>).dateModified;
@@ -72,9 +106,8 @@ export async function handler(client: ZoteroClient, args: unknown) {
 	}
 
 	const { limit = 10, since } = parsed.data;
-	const sinceDate = since ? new Date(since) : undefined;
-	const filtered = sinceDate
-		? await listItemsSince(client, limit, sinceDate)
+	const filtered = since
+		? await listItemsSince(client, limit, since)
 		: await client.listItems({
 				...sortOptions,
 				limit,
