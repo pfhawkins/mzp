@@ -114,6 +114,7 @@ describe("zotero_get_item_children", () => {
 		expect(result.content[0]?.text).toContain("Notes (1)");
 		expect(result.content[0]?.text).toContain("Attachments (1)");
 		expect(result.content[0]?.text).toContain("Note content");
+		expect(result.content[0]?.text).not.toContain("Note content...");
 		expect(result.content[0]?.text).toContain("PDF");
 		expect(result.content[0]?.text).toContain("ATT1");
 	});
@@ -135,6 +136,26 @@ describe("zotero_get_item_children", () => {
 
 		expect(result.content[0]?.text).toContain("Research & Development (R&D) costs < budget");
 		expect(result.content[0]?.text).not.toContain("&amp;");
+	});
+
+	test("only appends an ellipsis to truncated notes", async () => {
+		const longNoteText = "a".repeat(201);
+		const client = makeMockClient({
+			getItemChildren: async () => [
+				{
+					key: "NOTE1",
+					itemType: "note",
+					title: "Long Note",
+					note: `<p>${longNoteText}</p>`,
+					version: 1,
+				},
+			],
+		});
+
+		const result = await getItemChildren.handler(client, { itemKey: "ITEM1" });
+
+		expect(result.content[0]?.text).toContain(`${"a".repeat(200)}...`);
+		expect(result.content[0]?.text).not.toContain(`${"a".repeat(201)}...`);
 	});
 
 	test("returns empty message when no children", async () => {

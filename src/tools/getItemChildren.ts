@@ -46,8 +46,10 @@ function isValidCodePoint(codePoint: number): boolean {
 	return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff;
 }
 
-function formatNoteText(noteText: string): string {
-	return decodeHtmlEntities(noteText.replace(/<[^>]+>/g, "")).slice(0, 200);
+function formatNotePreview(noteText: string): string {
+	const decodedText = decodeHtmlEntities(noteText.replace(/<[^>]+>/g, ""));
+	const preview = decodedText.slice(0, 200);
+	return decodedText.length > preview.length ? `${preview}...` : preview;
 }
 
 export async function handler(client: ZoteroClient, args: unknown) {
@@ -77,7 +79,7 @@ export async function handler(client: ZoteroClient, args: unknown) {
 			const noteText = (note as Record<string, unknown>).note as string | undefined;
 			const title = note.title ?? "Untitled Note";
 			lines.push(`- ${title} (key: ${note.key})`);
-			if (noteText) lines.push(`  ${formatNoteText(noteText)}...`);
+			if (noteText) lines.push(`  ${formatNotePreview(noteText)}`);
 		}
 	}
 
