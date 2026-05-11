@@ -147,7 +147,36 @@ describe("ZoteroClient", () => {
 		expect(collections).toHaveLength(1);
 		expect(collections[0]?.key).toBe("COLL1234");
 		expect(collections[0]?.name).toBe("Research Notes");
-		expect(collections[0]?.parentCollection).toBe(false);
+		expect(collections[0]?.parentCollection).toBeNull();
+	});
+
+	test("preserves parent collection keys on nested collections", async () => {
+		mockFetch(async () => {
+			return new Response(
+				JSON.stringify([
+					{
+						key: "CHILD123",
+						version: 4,
+						data: {
+							key: "CHILD123",
+							version: 4,
+							name: "Nested Notes",
+							parentCollection: "PARENT1",
+						},
+					},
+				]),
+			);
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+
+		const collections = await client.listCollections();
+
+		expect(collections[0]?.parentCollection).toBe("PARENT1");
 	});
 
 	test("paginate follows rel next URLs from Link headers", async () => {

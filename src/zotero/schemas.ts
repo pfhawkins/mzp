@@ -46,7 +46,7 @@ const zoteroCollectionDataSchema = z
 		key: z.string(),
 		version: z.number(),
 		name: z.string(),
-		parentCollection: z.union([z.string(), z.boolean()]).optional(),
+		parentCollection: z.union([z.string(), z.literal(false).transform(() => null)]).optional(),
 		relations: z.record(z.string(), z.unknown()).optional(),
 	})
 	.passthrough();
