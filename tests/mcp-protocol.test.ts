@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import pkg from "../package.json";
 
 const BINARY_NAME = process.platform === "win32" ? "zotero-mcp.exe" : "zotero-mcp";
 const ZOTERO_SERVER_SCRIPT = `
@@ -179,17 +180,47 @@ async function readStartupLine(proc: ReturnType<typeof spawn>, label: string): P
 	});
 }
 
+async function runCompiledBinary(
+	binaryPath: string | undefined,
+	args: string[],
+): Promise<{
+	code: number | null;
+	signal: NodeJS.Signals | null;
+	stdout: string;
+	stderr: string;
+}> {
+	if (!binaryPath) throw new Error("MCP binary was not built");
+
+	const proc = spawn(binaryPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+	let stdout = "";
+	let stderr = "";
+
+	return new Promise((resolve, reject) => {
+		proc.stdout?.on("data", (chunk: Buffer) => {
+			stdout += chunk.toString();
+		});
+		proc.stderr?.on("data", (chunk: Buffer) => {
+			stderr += chunk.toString();
+		});
+		proc.once("error", reject);
+		proc.once("exit", (code, signal) => {
+			resolve({ code, signal, stdout, stderr });
+		});
+	});
+}
+
 describe("MCP protocol integration", () => {
 	let zoteroServer: ReturnType<typeof spawn> | undefined;
 	let zoteroBaseUrl: string | undefined;
 	let proc: ReturnType<typeof spawn> | undefined;
 	let responseIter: AsyncIterator<string> | undefined;
 	let buildDir: string | undefined;
+	let binaryPath: string | undefined;
 
 	beforeAll(
 		async () => {
 			buildDir = await mkdtemp(join(tmpdir(), "zotero-mcp-test-"));
-			const binaryPath = join(buildDir, BINARY_NAME);
+			binaryPath = join(buildDir, BINARY_NAME);
 			await Bun.$`bun build --compile --minify --sourcemap src/index.ts --outfile ${binaryPath}`;
 
 			const zoteroFixture = await startZoteroServerFixture();
@@ -228,6 +259,25 @@ describe("MCP protocol integration", () => {
 		if (typeof value !== "string") throw new Error("Expected string response");
 		return JSON.parse(value);
 	}
+
+	test("--version writes to stdout", async () => {
+		const result = await runCompiledBinary(binaryPath, ["--version"]);
+
+		expect(result.code).toBe(0);
+		expect(result.signal).toBeNull();
+		expect(result.stdout.trim()).toBe(pkg.version);
+		expect(result.stderr).toBe("");
+	});
+
+	test("--help writes to stdout", async () => {
+		const result = await runCompiledBinary(binaryPath, ["--help"]);
+
+		expect(result.code).toBe(0);
+		expect(result.signal).toBeNull();
+		expect(result.stdout).toContain(`zotero-mcp v${pkg.version}`);
+		expect(result.stdout).toContain("Usage:");
+		expect(result.stderr).toBe("");
+	});
 
 	test("initialize handshake", async () => {
 		await sendJson(proc, {

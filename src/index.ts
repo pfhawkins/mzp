@@ -14,6 +14,10 @@ import { ZoteroClient } from "./zotero/client.js";
 
 const args = process.argv.slice(2);
 
+function writeCliOutput(message: string) {
+	process.stdout.write(message.endsWith("\n") ? message : `${message}\n`);
+}
+
 function toolErrorResult(message: string) {
 	return {
 		content: [{ type: "text" as const, text: `Error: ${message}` }],
@@ -22,12 +26,12 @@ function toolErrorResult(message: string) {
 }
 
 if (args.includes("--version") || args.includes("-v")) {
-	console.error(pkg.version);
+	writeCliOutput(pkg.version);
 	process.exit(0);
 }
 
 if (args.includes("--help") || args.includes("-h")) {
-	console.error(`zotero-mcp v${pkg.version}
+	writeCliOutput(`zotero-mcp v${pkg.version}
 Zotero MCP server — expose your Zotero library to MCP clients.
 
 Usage:
