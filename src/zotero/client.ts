@@ -7,10 +7,14 @@ import {
 	zoteroWriteResponseSchema,
 } from "./schemas.js";
 
+const MAX_RETRY_AFTER_MS = 30_000;
+
 function retryDelayMs(attempt: number, retryAfter: string | null): number {
 	if (retryAfter) {
 		const retryAfterSeconds = Number(retryAfter);
-		if (Number.isFinite(retryAfterSeconds)) return retryAfterSeconds * 1000;
+		if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
+			return Math.min(retryAfterSeconds * 1000, MAX_RETRY_AFTER_MS);
+		}
 	}
 
 	return Math.min(1000 * 2 ** attempt, 10000) + Math.random() * 1000;

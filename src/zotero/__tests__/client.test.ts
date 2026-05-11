@@ -221,6 +221,32 @@ describe("ZoteroClient", () => {
 		expect(items).toHaveLength(1);
 	});
 
+	test("clamps oversized Retry-After delays", async () => {
+		const delays: number[] = [];
+		mockSetTimeoutImmediate(delays);
+		let calls = 0;
+		mockFetch(async () => {
+			calls++;
+			if (calls === 1) {
+				return new Response("Too Many Requests", {
+					status: 429,
+					headers: { "Retry-After": "86400" },
+				});
+			}
+			return new Response(JSON.stringify([{ key: "ITEM1", itemType: "book", version: 1 }]));
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+		const items = await client.listItems({ limit: 1 });
+		expect(calls).toBe(2);
+		expect(items).toHaveLength(1);
+		expect(delays).toEqual([30_000]);
+	});
+
 	test("falls back to exponential backoff when Retry-After is an HTTP-date", async () => {
 		const delays: number[] = [];
 		mockSetTimeoutImmediate(delays);
