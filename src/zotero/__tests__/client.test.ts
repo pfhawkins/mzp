@@ -286,7 +286,40 @@ describe("ZoteroClient", () => {
 		const items = await client.listItems({ limit: 1 });
 		expect(calls).toBe(2);
 		expect(items).toHaveLength(1);
-		expect(delays).toEqual([30_000]);
+		expect(delays).toEqual([10_000]);
+	});
+
+	test("stops retrying before cumulative delays exceed MCP-friendly budget", async () => {
+		const delays: number[] = [];
+		mockSetTimeoutImmediate(delays);
+		let calls = 0;
+		mockFetch(async () => {
+			calls++;
+			return new Response("Too Many Requests", {
+				status: 429,
+				headers: { "Retry-After": "30", "Zotero-Request-ID": "req-budget" },
+			});
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+
+		try {
+			await client.listItems({ limit: 1 });
+			expect.unreachable("should have thrown");
+		} catch (err) {
+			expect(err).toBeInstanceOf(ZoteroApiError);
+			expect((err as ZoteroApiError).status).toBe(429);
+			expect((err as ZoteroApiError).code).toBe("RETRY_BUDGET_EXCEEDED");
+			expect((err as ZoteroApiError).requestId).toBe("req-budget");
+			expect((err as ZoteroApiError).message).toContain("retry budget exceeded");
+		}
+
+		expect(calls).toBe(3);
+		expect(delays).toEqual([10_000, 10_000]);
 	});
 
 	test("falls back to exponential backoff when Retry-After is an HTTP-date", async () => {

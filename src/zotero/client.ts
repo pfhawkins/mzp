@@ -7,7 +7,8 @@ import {
 	zoteroWriteResponseSchema,
 } from "./schemas.js";
 
-const MAX_RETRY_AFTER_MS = 30_000;
+const MAX_RETRY_AFTER_MS = 10_000;
+const MAX_CUMULATIVE_RETRY_DELAY_MS = 20_000;
 
 function retryDelayMs(attempt: number, retryAfter: string | null): number {
 	if (retryAfter) {
@@ -94,14 +95,27 @@ export class ZoteroClient {
 		});
 	}
 
-	private async fetchWithRetry(url: string, init?: RequestInit, attempt = 0): Promise<Response> {
+	private async fetchWithRetry(
+		url: string,
+		init?: RequestInit,
+		attempt = 0,
+		cumulativeDelayMs = 0,
+	): Promise<Response> {
 		const res = await this.fetchOnce(url, init);
 
 		if ((res.status === 429 || res.status >= 500) && attempt < 3) {
 			const retryAfter = res.headers.get("Retry-After");
 			const delay = retryDelayMs(attempt, retryAfter);
+			if (cumulativeDelayMs + delay > MAX_CUMULATIVE_RETRY_DELAY_MS) {
+				throw new ZoteroApiError(
+					`Zotero API retry budget exceeded after ${cumulativeDelayMs}ms of delays; last response was ${res.status}`,
+					res.status,
+					"RETRY_BUDGET_EXCEEDED",
+					res.headers.get("Zotero-Request-ID") ?? undefined,
+				);
+			}
 			await new Promise((r) => setTimeout(r, delay));
-			return this.fetchWithRetry(url, init, attempt + 1);
+			return this.fetchWithRetry(url, init, attempt + 1, cumulativeDelayMs + delay);
 		}
 
 		return res;
