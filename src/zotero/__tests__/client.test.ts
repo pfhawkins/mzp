@@ -19,6 +19,14 @@ function mockSetTimeoutImmediate(delays?: number[]) {
 	}) as unknown as typeof setTimeout;
 }
 
+async function collectAsync<T>(items: AsyncIterable<T>): Promise<T[]> {
+	const results: T[] = [];
+	for await (const item of items) {
+		results.push(item);
+	}
+	return results;
+}
+
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 	globalThis.setTimeout = originalSetTimeout;
@@ -164,7 +172,7 @@ describe("ZoteroClient", () => {
 			baseUrl: "https://zotero.test",
 		});
 
-		const results = [];
+		const results: Array<{ id: number }> = [];
 		for await (const item of client.paginate("/items", z.array(z.object({ id: z.number() })), {
 			limit: 1,
 			params: { start: 5 },
@@ -177,6 +185,40 @@ describe("ZoteroClient", () => {
 			"https://zotero.test/users/123/items?limit=1&start=5",
 			"https://zotero.test/users/123/items?limit=1&start=99",
 		]);
+	});
+
+	test("paginate rejects cross-origin next links", async () => {
+		const urls: string[] = [];
+		mockFetch(async (url) => {
+			urls.push(url.toString());
+			return new Response(JSON.stringify([{ id: 1 }]), {
+				headers: {
+					Link: '<https://evil.test/users/123/items?limit=1&start=99>; rel="next"',
+				},
+			});
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+
+		const results: Array<{ id: number }> = [];
+		const iterator = client.paginate("/items", z.array(z.object({ id: z.number() })), {
+			limit: 1,
+		});
+
+		await expect(
+			(async () => {
+				for await (const item of iterator) {
+					results.push(item);
+				}
+			})(),
+		).rejects.toThrow("Refusing to follow cross-origin pagination link");
+
+		expect(results).toEqual([{ id: 1 }]);
+		expect(urls).toEqual(["https://zotero.test/users/123/items?limit=1&start=0"]);
 	});
 
 	test("paginate stops when no next link", async () => {
@@ -565,6 +607,75 @@ describe("ZoteroClient", () => {
 		expect(urls[0]).toBe("https://zotero.test/users/123/collections/C1/items?limit=5");
 	});
 
+	test("iterateItems calls paginated items endpoint with filters", async () => {
+		const urls: string[] = [];
+		mockFetch(async (url) => {
+			urls.push(url.toString());
+			return new Response(JSON.stringify([{ key: "ITEM1", itemType: "book", version: 1 }]));
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+		const items = await collectAsync(
+			client.iterateItems({
+				q: "biology",
+				qmode: "everything",
+				tag: ["science", "reviewed"],
+				itemType: "book",
+				limit: 5,
+				start: 10,
+				sort: "dateModified",
+				direction: "desc",
+			}),
+		);
+		expect(items).toHaveLength(1);
+		expect(urls[0]).toContain("limit=5");
+		expect(urls[0]).toContain("start=10");
+		expect(urls[0]).toContain("q=biology");
+		expect(urls[0]).toContain("qmode=everything");
+		expect(urls[0]).toContain("tag=science%7C%7Creviewed");
+		expect(urls[0]).toContain("itemType=book");
+		expect(urls[0]).toContain("sort=dateModified");
+		expect(urls[0]).toContain("direction=desc");
+	});
+
+	test("iterateCollections calls paginated collections endpoint", async () => {
+		const urls: string[] = [];
+		mockFetch(async (url) => {
+			urls.push(url.toString());
+			return new Response(JSON.stringify([{ key: "C1", name: "Papers", version: 1 }]));
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+		const collections = await collectAsync(client.iterateCollections({ limit: 5, start: 10 }));
+		expect(collections).toHaveLength(1);
+		expect(urls[0]).toBe("https://zotero.test/users/123/collections?limit=5&start=10");
+	});
+
+	test("iterateCollectionItems calls paginated collection items endpoint", async () => {
+		const urls: string[] = [];
+		mockFetch(async (url) => {
+			urls.push(url.toString());
+			return new Response(JSON.stringify([{ key: "ITEM1", itemType: "book", version: 1 }]));
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+		const items = await collectAsync(client.iterateCollectionItems("C1", { limit: 5, start: 10 }));
+		expect(items).toHaveLength(1);
+		expect(urls[0]).toBe("https://zotero.test/users/123/collections/C1/items?limit=5&start=10");
+	});
+
 	test("listTags calls correct endpoint", async () => {
 		const urls: string[] = [];
 		mockFetch(async (url) => {
@@ -582,6 +693,23 @@ describe("ZoteroClient", () => {
 		expect(urls[0]).toBe("https://zotero.test/users/123/tags?limit=10");
 	});
 
+	test("iterateTags calls paginated tags endpoint", async () => {
+		const urls: string[] = [];
+		mockFetch(async (url) => {
+			urls.push(url.toString());
+			return new Response(JSON.stringify([{ tag: "ai" }]));
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+		const tags = await collectAsync(client.iterateTags({ limit: 5, start: 10 }));
+		expect(tags).toHaveLength(1);
+		expect(urls[0]).toBe("https://zotero.test/users/123/tags?limit=5&start=10");
+	});
+
 	test("searchFulltext calls correct endpoint with qmode=everything", async () => {
 		const urls: string[] = [];
 		mockFetch(async (url) => {
@@ -595,6 +723,25 @@ describe("ZoteroClient", () => {
 			baseUrl: "https://zotero.test",
 		});
 		await client.searchFulltext("neural nets", { limit: 5 });
+		expect(urls[0]).toContain("q=neural+nets");
+		expect(urls[0]).toContain("qmode=everything");
+		expect(urls[0]).toContain("limit=5");
+	});
+
+	test("iterateFulltextSearch calls paginated fulltext search endpoint", async () => {
+		const urls: string[] = [];
+		mockFetch(async (url) => {
+			urls.push(url.toString());
+			return new Response(JSON.stringify([{ key: "ITEM1", itemType: "book", version: 1 }]));
+		});
+
+		const client = new ZoteroClient({
+			apiKey: "test",
+			userId: "123",
+			baseUrl: "https://zotero.test",
+		});
+		const items = await collectAsync(client.iterateFulltextSearch("neural nets", { limit: 5 }));
+		expect(items).toHaveLength(1);
 		expect(urls[0]).toContain("q=neural+nets");
 		expect(urls[0]).toContain("qmode=everything");
 		expect(urls[0]).toContain("limit=5");

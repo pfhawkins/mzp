@@ -43,33 +43,20 @@ function modifiedAt(item: ZoteroItem): Date | undefined {
 
 async function listItemsSince(client: ZoteroClient, limit: number, sinceDate: Date) {
 	const items: ZoteroItem[] = [];
-	let start = 0;
-	let reachedCutoff = false;
 
-	while (items.length < limit && !reachedCutoff) {
-		const page = await client.listItems({
-			...sortOptions,
-			limit,
-			start,
-		});
+	for await (const item of client.iterateItems({
+		...sortOptions,
+		limit,
+	})) {
+		const dateModified = modifiedAt(item);
+		if (!dateModified) continue;
 
-		if (page.length === 0) break;
-
-		for (const item of page) {
-			const dateModified = modifiedAt(item);
-			if (!dateModified) continue;
-
-			if (dateModified < sinceDate) {
-				reachedCutoff = true;
-				break;
-			}
-
-			items.push(item);
-			if (items.length >= limit) break;
+		if (dateModified < sinceDate) {
+			break;
 		}
 
-		if (page.length < limit) break;
-		start += limit;
+		items.push(item);
+		if (items.length >= limit) break;
 	}
 
 	return items;

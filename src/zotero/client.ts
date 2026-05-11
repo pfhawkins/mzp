@@ -148,10 +148,18 @@ export class ZoteroClient {
 	): AsyncGenerator<T> {
 		const limit = opts?.limit ?? 25;
 		const requestUrl = `${this.baseUrl}${this.libraryPath}${path}`;
+		const expectedOrigin = new URL(this.baseUrl).origin;
 		let nextUrl: string | undefined;
 
 		while (true) {
 			const url = nextUrl ? new URL(nextUrl, requestUrl) : new URL(requestUrl);
+			if (url.origin !== expectedOrigin) {
+				throw new ZoteroApiError(
+					`Refusing to follow cross-origin pagination link: ${url.origin}`,
+					0,
+					"INVALID_PAGINATION_LINK",
+				);
+			}
 			if (!nextUrl) {
 				url.searchParams.set("limit", String(limit));
 				if (!opts?.params || opts.params.start === undefined) {
@@ -223,6 +231,35 @@ export class ZoteroClient {
 		return this.request("/items", z.array(zoteroItemSchema), { params });
 	}
 
+	iterateItems(opts?: {
+		q?: string;
+		qmode?: string;
+		tag?: string | string[];
+		itemType?: string;
+		collection?: string;
+		limit?: number;
+		start?: number;
+		sort?: string;
+		direction?: "asc" | "desc";
+	}) {
+		const params: Record<string, string | number | undefined> = {
+			q: opts?.q,
+			qmode: opts?.qmode,
+			itemType: opts?.itemType,
+			collection: opts?.collection,
+			start: opts?.start,
+			sort: opts?.sort,
+			direction: opts?.direction,
+		};
+		if (opts?.tag) {
+			params.tag = Array.isArray(opts.tag) ? opts.tag.join("||") : opts.tag;
+		}
+		return this.paginate("/items", z.array(zoteroItemSchema), {
+			params,
+			limit: opts?.limit,
+		});
+	}
+
 	getItem(itemKey: string) {
 		return this.request(`/items/${itemKey}`, zoteroItemSchema);
 	}
@@ -237,6 +274,13 @@ export class ZoteroClient {
 		});
 	}
 
+	iterateCollections(opts?: { limit?: number; start?: number }) {
+		return this.paginate("/collections", z.array(zoteroCollectionSchema), {
+			params: { start: opts?.start },
+			limit: opts?.limit,
+		});
+	}
+
 	getCollection(collectionKey: string) {
 		return this.request(`/collections/${collectionKey}`, zoteroCollectionSchema);
 	}
@@ -247,9 +291,23 @@ export class ZoteroClient {
 		});
 	}
 
+	iterateCollectionItems(collectionKey: string, opts?: { limit?: number; start?: number }) {
+		return this.paginate(`/collections/${collectionKey}/items`, z.array(zoteroItemSchema), {
+			params: { start: opts?.start },
+			limit: opts?.limit,
+		});
+	}
+
 	listTags(opts?: { limit?: number; start?: number }) {
 		return this.request("/tags", z.array(zoteroTagResponseSchema), {
 			params: { limit: opts?.limit, start: opts?.start },
+		});
+	}
+
+	iterateTags(opts?: { limit?: number; start?: number }) {
+		return this.paginate("/tags", z.array(zoteroTagResponseSchema), {
+			params: { start: opts?.start },
+			limit: opts?.limit,
 		});
 	}
 
@@ -261,6 +319,17 @@ export class ZoteroClient {
 				limit: opts?.limit,
 				start: opts?.start,
 			},
+		});
+	}
+
+	iterateFulltextSearch(q: string, opts?: { limit?: number; start?: number }) {
+		return this.paginate("/items", z.array(zoteroItemSchema), {
+			params: {
+				q,
+				qmode: "everything",
+				start: opts?.start,
+			},
+			limit: opts?.limit,
 		});
 	}
 

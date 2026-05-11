@@ -14,6 +14,12 @@ function makeMockClient(overrides?: Partial<ZoteroClient>): ZoteroClient {
 	return overrides as unknown as ZoteroClient;
 }
 
+async function* asyncItems<T>(items: T[]): AsyncGenerator<T> {
+	for (const item of items) {
+		yield item;
+	}
+}
+
 describe("zotero_search", () => {
 	test("rejects empty query", async () => {
 		const client = makeMockClient();
@@ -213,52 +219,48 @@ describe("zotero_recent", () => {
 
 	test("filters by since date", async () => {
 		const client = makeMockClient({
-			listItems: async () => [
-				{
-					key: "I2",
-					itemType: "book",
-					title: "New Book",
-					dateModified: "2024-12-01T00:00:00Z",
-					version: 1,
-				},
-				{
-					key: "I1",
-					itemType: "book",
-					title: "Old Book",
-					dateModified: "2023-01-01T00:00:00Z",
-					version: 1,
-				},
-			],
+			iterateItems: () =>
+				asyncItems([
+					{
+						key: "I2",
+						itemType: "book",
+						title: "New Book",
+						dateModified: "2024-12-01T00:00:00Z",
+						version: 1,
+					},
+					{
+						key: "I1",
+						itemType: "book",
+						title: "Old Book",
+						dateModified: "2023-01-01T00:00:00Z",
+						version: 1,
+					},
+				]),
 		});
 		const result = await recent.handler(client, { since: "2024-06-01T00:00:00Z" });
 		expect(result.content[0]?.text).toContain("New Book");
 		expect(result.content[0]?.text).not.toContain("Old Book");
 	});
 
-	test("paginates since results until the requested limit is filled", async () => {
-		const calls: Array<{ limit?: number; start?: number }> = [];
+	test("uses the item iterator for since results until the requested limit is filled", async () => {
+		const calls: Array<{ limit?: number; sort?: string; direction?: string }> = [];
 		const client = makeMockClient({
-			listItems: async (opts) => {
-				calls.push({ limit: opts?.limit, start: opts?.start });
-				if (opts?.start === 0) {
-					return [
-						{
-							key: "I1",
-							itemType: "book",
-							title: "First New Book",
-							dateModified: "2024-12-03T00:00:00Z",
-							version: 1,
-						},
-						{
-							key: "I2",
-							itemType: "book",
-							title: "Missing Modified Date",
-							version: 1,
-						},
-					];
-				}
-
-				return [
+			iterateItems: (opts) => {
+				calls.push({ limit: opts?.limit, sort: opts?.sort, direction: opts?.direction });
+				return asyncItems([
+					{
+						key: "I1",
+						itemType: "book",
+						title: "First New Book",
+						dateModified: "2024-12-03T00:00:00Z",
+						version: 1,
+					},
+					{
+						key: "I2",
+						itemType: "book",
+						title: "Missing Modified Date",
+						version: 1,
+					},
 					{
 						key: "I3",
 						itemType: "book",
@@ -273,16 +275,13 @@ describe("zotero_recent", () => {
 						dateModified: "2023-01-01T00:00:00Z",
 						version: 1,
 					},
-				];
+				]);
 			},
 		});
 
 		const result = await recent.handler(client, { limit: 2, since: "2024-06-01T00:00:00Z" });
 
-		expect(calls).toEqual([
-			{ limit: 2, start: 0 },
-			{ limit: 2, start: 2 },
-		]);
+		expect(calls).toEqual([{ limit: 2, sort: "dateModified", direction: "desc" }]);
 		expect(result.content[0]?.text).toContain("First New Book");
 		expect(result.content[0]?.text).toContain("Second New Book");
 		expect(result.content[0]?.text).not.toContain("Missing Modified Date");
