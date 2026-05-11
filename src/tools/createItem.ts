@@ -92,6 +92,13 @@ function getWriteFailure(result: unknown): unknown | undefined {
 	return firstFailedKey ? result.failed[firstFailedKey] : undefined;
 }
 
+function stripServerAssignedFields<T extends Record<string, unknown>>(
+	itemData: T,
+): Omit<T, "key" | "version" | "itemKey"> {
+	const { key: _key, version: _version, itemKey: _itemKey, ...writeData } = itemData;
+	return writeData;
+}
+
 export const handler: ToolDefinition["handler"] = async (client, args) => {
 	const parsed = z
 		.object({
@@ -127,7 +134,7 @@ export const handler: ToolDefinition["handler"] = async (client, args) => {
 		.passthrough()
 		.parse(args);
 
-	const itemData = { ...parsed };
+	const itemData = stripServerAssignedFields(parsed);
 
 	const result = await client.createItem(itemData);
 	const writeFailure = getWriteFailure(result);

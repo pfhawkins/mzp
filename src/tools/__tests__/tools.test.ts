@@ -369,6 +369,32 @@ describe("zotero_create_item", () => {
 		});
 	});
 
+	test("strips server-assigned fields before creating an item", async () => {
+		let createdItem: object | undefined;
+		const client = makeMockClient({
+			createItem: async (itemData) => {
+				createdItem = itemData;
+				return { success: { "0": "NEWITEM" } };
+			},
+		});
+
+		const result = await createItem.handler(client, {
+			itemType: "book",
+			title: "A Book",
+			key: "EXISTING1",
+			version: 12,
+			itemKey: "EXISTING1",
+			customZoteroField: "kept",
+		});
+
+		expect(result.content[0]?.text).toContain("NEWITEM");
+		expect(createdItem).toEqual({
+			itemType: "book",
+			title: "A Book",
+			customZoteroField: "kept",
+		});
+	});
+
 	test("treats Zotero batch write failures as creation errors", async () => {
 		const client = makeMockClient({
 			createItem: async () => ({
