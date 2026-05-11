@@ -39,6 +39,10 @@ function linkHeaderUrlForRel(linkHeader: string | null, rel: string): string | u
 	return undefined;
 }
 
+function normalizeBaseUrl(baseUrl?: string): string {
+	return baseUrl?.replace(/\/+$/, "") ?? "https://api.zotero.org";
+}
+
 export class ZoteroApiError extends Error {
 	constructor(
 		message: string,
@@ -67,13 +71,12 @@ export class ZoteroClient {
 		if (opts.userId && opts.groupId) {
 			throw new Error("Exactly one of userId or groupId must be provided");
 		}
+		this.baseUrl = normalizeBaseUrl(opts.baseUrl);
+		this.apiKey = opts.apiKey;
+
 		if (opts.userId) {
-			this.baseUrl = opts.baseUrl?.replace(/\/$/, "") ?? "https://api.zotero.org";
-			this.apiKey = opts.apiKey;
 			this.libraryPath = `/users/${opts.userId}`;
 		} else if (opts.groupId) {
-			this.baseUrl = opts.baseUrl?.replace(/\/$/, "") ?? "https://api.zotero.org";
-			this.apiKey = opts.apiKey;
 			this.libraryPath = `/groups/${opts.groupId}`;
 		} else {
 			throw new Error("Exactly one of userId or groupId must be provided");

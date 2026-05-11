@@ -773,7 +773,7 @@ describe("ZoteroClient", () => {
 		expect(err.name).toBe("ZoteroApiError");
 	});
 
-	test("strips trailing slash from baseUrl", async () => {
+	test("strips trailing slashes from baseUrl", async () => {
 		const urls: string[] = [];
 		mockFetch(async (url) => {
 			urls.push(url.toString());
@@ -783,7 +783,7 @@ describe("ZoteroClient", () => {
 		const client = new ZoteroClient({
 			apiKey: "test",
 			userId: "123",
-			baseUrl: "https://zotero.test/",
+			baseUrl: "https://zotero.test///",
 		});
 		await client.listItems();
 		expect(urls[0]).toBe("https://zotero.test/users/123/items");
