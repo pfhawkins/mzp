@@ -26,6 +26,55 @@ const schema = z.object({
 	since: z.string().datetime().optional(),
 });
 
+type ZoteroItem = Awaited<ReturnType<ZoteroClient["listItems"]>>[number];
+
+const sortOptions = {
+	sort: "dateModified",
+	direction: "desc",
+} as const;
+
+function modifiedAt(item: ZoteroItem): Date | undefined {
+	const dateModified = (item as Record<string, unknown>).dateModified;
+	if (typeof dateModified !== "string") return undefined;
+
+	const date = new Date(dateModified);
+	return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+async function listItemsSince(client: ZoteroClient, limit: number, sinceDate: Date) {
+	const items: ZoteroItem[] = [];
+	let start = 0;
+	let reachedCutoff = false;
+
+	while (items.length < limit && !reachedCutoff) {
+		const page = await client.listItems({
+			...sortOptions,
+			limit,
+			start,
+		});
+
+		if (page.length === 0) break;
+
+		for (const item of page) {
+			const dateModified = modifiedAt(item);
+			if (!dateModified) continue;
+
+			if (dateModified < sinceDate) {
+				reachedCutoff = true;
+				break;
+			}
+
+			items.push(item);
+			if (items.length >= limit) break;
+		}
+
+		if (page.length < limit) break;
+		start += limit;
+	}
+
+	return items;
+}
+
 export async function handler(client: ZoteroClient, args: unknown) {
 	const parsed = schema.safeParse(args);
 	if (!parsed.success) {
@@ -36,19 +85,13 @@ export async function handler(client: ZoteroClient, args: unknown) {
 	}
 
 	const { limit = 10, since } = parsed.data;
-	const items = await client.listItems({
-		sort: "dateModified",
-		direction: "desc",
-		limit,
-	});
-
 	const sinceDate = since ? new Date(since) : undefined;
 	const filtered = sinceDate
-		? items.filter((item) => {
-				const dm = (item as Record<string, unknown>).dateModified as string | undefined;
-				return dm ? new Date(dm) >= sinceDate : false;
-			})
-		: items;
+		? await listItemsSince(client, limit, sinceDate)
+		: await client.listItems({
+				...sortOptions,
+				limit,
+			});
 
 	if (filtered.length === 0) {
 		return { content: [{ type: "text" as const, text: "No recent items found." }] };
